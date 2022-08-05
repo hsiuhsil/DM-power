@@ -40,4 +40,5 @@ The algorithm to optimize dispersion measure (DM) for Fast Radio Bursts (FRBs) b
 * The optimized DM uncertainty in pc cm<sup>-3</sup> will be shown. 
 
 ## Contact information
+* Please report issues [here](https://github.com/hsiuhsil/DM_power/issues).
 * Please feel free to contact Hsiu-Hsien Lin at `hhlin@cita.utoronto.ca` for further discussions.
