@@ -10,6 +10,10 @@ The algorithm to optimize dispersion measure (DM) for Fast Radio Bursts (FRBs) b
 * A `npy` file with a shape of (frequency, time)
 * The data should be dedispersed to an initial DM value. The algorithm will determine the optimized DM value by given parameters.
 * The radio-frequency-interference (RFI) should be removed already.
+* A sufficient duration of the intensity file is required. 
+    * The 0-25 and 75-100 % of the duration are for the off-pulse region.
+    * The 25-75 % of the duration is for the on-pulse region.
+        * The duration of the on-pulse should cover all of the DM ranges for the optimization.  
 
 ### The required parameters:
 
