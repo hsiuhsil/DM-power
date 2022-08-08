@@ -1,6 +1,6 @@
 # DM_power
 ## The purpose of this algorithm 
-The algorithm to optimize dispersion measure (DM) for Fast Radio Bursts (FRBs) by maximizing the sub-structure in the power spectrum 
+The algorithm to optimize dispersion measure (DM) for micro-structures of single pulses, such as Fast Radio Bursts (FRBs) or Pulsars, by maximizing the sub-structure in the power spectrum 
 * The link of the publication (TBA)
 
 ## The usage of the algorithm
