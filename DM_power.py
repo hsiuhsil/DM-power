@@ -422,6 +422,8 @@ def main():
 
     print('The optimized DM: '+str(np.round(opt_dm,4))+' pc/cm**3')
     print('The optimized DM uncertainty: '+str(np.round(opt_dm_err,4))+' pc/cm**3')
+    
+    return opt_dm, opt_dm_err
 
 
 if __name__ == '__main__':
