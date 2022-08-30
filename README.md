@@ -1,7 +1,8 @@
 # DM_power
 ## The purpose of this algorithm 
 The algorithm to optimize dispersion measure (DM) for micro-structures of single pulses, such as Fast Radio Bursts (FRBs) or Pulsars, by maximizing the sub-structure in the power spectrum 
-* The link of the publication (TBA)
+* The link to [the preprint PDF](https://arxiv.org/pdf/2208.13677.pdf) and [the NASA ADS page](https://ui.adsabs.harvard.edu/abs/2022arXiv220813677L/abstract).
+
 
 ## The usage of the algorithm
 
