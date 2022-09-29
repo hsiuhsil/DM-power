@@ -8,7 +8,7 @@ The algorithm to optimize dispersion measure (DM) for micro-structures of single
 
 ### The required intensity file
 
-* A `npy` file with a shape of (frequency, time)
+* A `npy` file with a shape of (frequency, time), and the 0-index row corresponds to the lowest frequency channel.
 * The data should be dedispersed to an initial DM value. The algorithm will determine the optimized DM value by given parameters.
 * The radio-frequency-interference (RFI) should be removed already.
 * A sufficient duration of the intensity file is required. 
