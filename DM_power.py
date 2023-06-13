@@ -1,12 +1,12 @@
 import numpy as np
 
 # To run the parallel computing on the Scinet clusters
-#import mpi4py.rc
-#mpi4py.rc.threads = False
-#from mpi4py import MPI
-#comm = MPI.COMM_WORLD
-#size = comm.Get_size()
-#rank = comm.Get_rank()
+import mpi4py.rc
+mpi4py.rc.threads = False
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+size = comm.Get_size()
+rank = comm.Get_rank()
 
 import glob, math, os, sys
 import astropy.units as u
@@ -32,7 +32,14 @@ parser.add_argument('-dm_start','--dm-start', default=-2, type=float, help='the 
 parser.add_argument('-dm_end','--dm-end', default=2, type=float, help='the ending DM value for the optimization in pc/cm**3',required=True)
 parser.add_argument('-dm_steps','--dm-steps', default=51, type=int, help='the numer of DM steps for the optimization',required=True)
 parser.add_argument('-trials','--trials', default=1000, type=int, help='the numer of trials in the bootstrap tests',required=True)
-parser.add_argument('-intensity_file','--intensity-file', type=str, help='the path of the intensity in the npy file with a shape of (frequency, time)',required=True)
+parser.add_argument('-rescaled','--rescaled', default=False, type=bool, help='whether apply the rescaled factor to the error estimate',required=True)
+parser.add_argument('-intensity_sim','--intensity-sim', default=False, type=bool, help='generate a Gaussian profile with a shape of (frequency, time)',required=False)
+parser.add_argument('-intensity_bootstrap','--intensity-bootstrap', default=False, type=bool, help='apply the bootstrap to an intensity profile with the shape of (frequency, time)',required=False)
+parser.add_argument('-sim_width','--sim-width', default=16, type=int, help='the width of the simulating Gaussian pulse',required=False)
+parser.add_argument('-sim_mu','--sim-mu', default=0, type=float, help='the mean value of the adding noise background to the simulating Gaussian pulse',required=False)
+parser.add_argument('-sim_sigma','--sim-sigma', default=0.25, type=float, help='the mean value of the adding noise background to the simulating Gaussian pulse',required=False)
+parser.add_argument('-intensity_file','--intensity-file', type=str, help='the path of the intensity in the npy file with a shape of (frequency, time)',required=False)
+parser.add_argument('-save_path','--save-path', type=str, help='the path of saving the test result in the npy file with a shape of (opt_dm, opt_dm_err)',required=False)
 args = parser.parse_args()
 
 
@@ -52,11 +59,26 @@ dm_end = args.dm_end
 dm_steps = args.dm_steps
 dm_series = np.linspace(dm_start, dm_end, dm_steps, endpoint=True)
 
+# define whether apply the rescaled factor or not
+rescaled = args.rescaled
+
 # define the trials:
 trials = args.trials # 0 without bootstraping, default for 1000
 
-# defint the intensity file
+# define the intensity file
 intensity_file = args.intensity_file
+
+#define the simulation parameters
+intensity_sim = args.intensity_sim
+sim_width = args.sim_width
+sim_mu = args.sim_mu
+sim_sigma = args.sim_sigma
+
+#define the bootstrap test
+intensity_bootstrap = args.intensity_bootstrap
+
+# define the saving path
+save_path = args.save_path
 
 def ddtime(fref,freq,DM):
     # the function to calculate the dispersion time delay 
@@ -72,28 +94,28 @@ def spec_shiftDM(data, DM, freqArr):
     #data should be in the shape of (ntime,nchan)
     # DM input is a value without unit
     #freqArr describes the frequency range of the data
-    
+
     # data means the intensity spectrum, in the shape of (time, freq)
     # freqArr, the aequence of frequency array 
-    
+
     data = data.T # to be in the shape of (nchan, ntime)
     fref = freqArr.max() # top of the band to be the reference freq
     dataNew = np.zeros(data.shape) # creating a new matrix to store the intensity with DM shift
     DM = DM*u.pc / u.cm**3 #give DM with the unit
-    
+
     for i in range(data.shape[0]): # to do incoh-dd for each of the freq channels
-        
+
         # below, we are using astropy to eventually remove the unit
         with u.set_enabled_equivalencies(u.dimensionless_angles()):
             # decide the how many chunks that the spectrum will be shifted in that freq
             roll = ddtime(fref,freqArr[i],DM)/dt
-            
+
             if True:
                 shift = roll.decompose().value
                 fftfreq = scipy.fftpack.fftfreq(len(data[i]))
                 fourier_shift  = np.exp(1j*2*np.pi*(shift*fftfreq))
                 dataNew[i] = np.fft.ifft(np.fft.fft(data[i])*fourier_shift)
-            
+
             else: # to get the roll amount in an interger
                 roll = int(roll.decompose().value)
                 # doing the shifting
@@ -105,7 +127,7 @@ def rebin(matrix, xbin, ybin):
     # matrix is your input data
     # xbin means the factor that how many nearby pixels in the horizontal axis (matrix.shape[1]) one wants to average.
     # ybin means the factor that how many nearby pixels in the vertical axis (matrix.shape[0]) one wants to average.
-    
+
     shape1=matrix.shape[0]//xbin
     shape2=matrix.shape[1]//ybin
     return np.nanmean(np.reshape(matrix[:shape1*xbin,:shape2*ybin],(shape1,xbin,shape2,ybin)),axis=(1,3))
@@ -114,7 +136,7 @@ def rebin1D(array, xbin):
     # the rebinning for a 1D case
     # the array is a 1D array/data
     # the xbin means the facotr that how many nearby pixels one wants to average. 
-    
+
     shape1=len(array)//xbin
     return np.nanmean(np.reshape(array[:shape1*xbin],(shape1,xbin)),axis=(1))
 
@@ -123,11 +145,11 @@ def svd(data):
     U, s, V = np.linalg.svd(data, full_matrices=False)
 
     if 0 < np.abs(np.amin(U[0])):
-        U[0] = -U[0]      
+        U[0] = -U[0]
 
     if False:
         s /= s.sum()
-        
+
     return U,s,V
 
 
@@ -135,17 +157,17 @@ def plot_svd(data, name, savefig=False):
     # plotting the SVD results.
 
     U,s,V=svd(data)
-    
+
     fig, (ax0, ax1,ax2) = plt.subplots(nrows=1, ncols=3, sharex=False,
                                     figsize=(16, 8))
     fig.suptitle('SVD analysis of '+name,fontsize=24,y=1.05)
     fig.subplots_adjust(top=0.9)
 
-    
+
     U=U.T
-    for i in range(8):        
+    for i in range(8):
         ax0.plot(f_arr, U[i]-i*0.5,label='U'+str(i))
-    
+
     ax0.set_xlabel('freq (MHz)')
     ax0.set_ylabel('Modes')
     ax0.set_title('U modes',fontsize=16)
@@ -153,12 +175,12 @@ def plot_svd(data, name, savefig=False):
     xticklabels = (np.arange(8)+1).tolist()
     yarr = np.arange(8)*-0.5
     yticklabels = (np.arange(8)+1).tolist()
-    
-    
+
+
     ax0.set_yticks(yarr)
     ax0.set_yticklabels(yticklabels)
     ax0.grid(True)
-    
+
     ax1.scatter(np.arange(len(s[:20])),s[:20])
     ax1.set_title('S modes',fontsize=16)
     ax1.set_xlabel('Modes')
@@ -172,23 +194,23 @@ def plot_svd(data, name, savefig=False):
     for i in range(8):
         t = dt*np.arange(len(V[i]))
         ax2.plot(t, V[i]-i*0.5,label='V'+str(i))
-    
+
     ax2.set_xlabel('time (ms)')
     ax2.set_ylabel('Modes')
     ax2.set_title('V modes',fontsize=16)
-    
+
     ax2.set_yticks(yarr)
     ax2.set_yticklabels(yticklabels)
     ax2.grid(True)
-    
+
     fig.tight_layout()
-    
+
     if savefig==True:
         filename = 'svd.png'
         plt.savefig(filename, dpi=50, bbox_inches='tight')
-    
+
     plt.show()
-    
+
 def fft_power_arr(arr):
     # input an array, doing the fft, fftshift
     fft_arr = scipy.fftpack.fft(arr)
@@ -198,15 +220,15 @@ def fft_power_arr(arr):
     return fft_arr # return the power
 
 def log_rebin1D(z, x, x_bins):
-    
+
     # z is the 1D data in linear scale, which one wanted to rebin  from linear to log scale.
     # x is the linear array (such the horizontal axis of time or freq)
     # x_bins should be the preferred log-scale of x 
-    
+
     log_rebinned = np.zeros([x_bins.size], dtype = float)
     n_avg = np.zeros([x_bins.size])
     for i in range(len(z)):
-        current_x =x[i]
+       current_x =x[i]
         # x and y_bin_idx is the index of the bin in 'x' where k belongs.
         x_bin_idx = np.where(abs(current_x-x_bins) == min(abs(current_x-x_bins)))[0][0]
         # at this index, in the rebinned plot, add the Z value.
@@ -232,6 +254,7 @@ def get_power(I, dm_series, trials):
     log_min = (np.log10(np.abs(delay_freq_range.value).min())//0.1)/10
     log_max = (np.log10(np.abs(delay_freq_range.value).max())//0.1+1)/10
     log_num = 10
+#    log_num = 100
     log_delay_freq_range = np.concatenate((np.asarray([0]),np.logspace(log_min,log_max,log_num)))
 
     dm_power = np.zeros((len(dm_series), trials, len(delay_freq_range.value[pos_freq:])))
@@ -241,52 +264,52 @@ def get_power(I, dm_series, trials):
     T0=time.time()
     # for each of the DM:
     for dm, j in zip(dm_series, np.arange(len(dm_series))):
-    
+
         # incoh-DD at that DM
         I_shift = spec_shiftDM(I.T, dm, f_arr)
-    
+
         on_pulse = I_shift[:,int(0.25*I.shape[1]):int(0.75*I.shape[1])]
         off_pulse = np.concatenate((I_shift[:,0:int(0.25*I.shape[1])],I_shift[:,int(0.75*I.shape[1]):]),axis=-1)
-        
+
         # apply the SVD and get the normalization
         U_on, s_on, V_on = svd(on_pulse)
         U_off, s_off, V_off = svd(off_pulse)
 
         # getting the complex conjugate of the U from the on-pulse
-        w0 = np.linalg.pinv(U_on) 
-    
+        w0 = np.linalg.pinv(U_on)
+
         # getting U0
         U0 = w0[0]
         waterfall_on = on_pulse*(U0[:, np.newaxis])
         waterfall_off = off_pulse*(U0[:, np.newaxis])
 
-        '''applying bootstrap'''  
+        '''applying bootstrap'''
         for trail in range(trials):
             s = np.random.choice(np.arange(nchan),size=nchan)
-        
-            pulse_svd = np.sum(waterfall_on[s,:],axis=0)
-            noise_svd = np.sum(waterfall_off[s,:],axis=0)            
 
-            if True: 
+            pulse_svd = np.sum(waterfall_on[s,:],axis=0)
+            noise_svd = np.sum(waterfall_off[s,:],axis=0)
+
+            if True:
                 pulse_svd = np.abs(pulse_svd)
                 noise_svd = np.abs(noise_svd)
 
             fft_v0_pulse = fft_power_arr(pulse_svd)
             fft_v0_noise = fft_power_arr(noise_svd)
-    
+
             '''log bins of the power spectrum'''
             # getting the on minus off (to remove the noise power)
             fft_v0_pulse_subtract = fft_v0_pulse[pos_freq:] - fft_v0_noise[pos_freq:]
             # getting the power-spectrum in the log-rebin1D 
             log_fft_v0_pulse_subtract = log_rebin1D(fft_v0_pulse_subtract, delay_freq_range.value[pos_freq:], log_delay_freq_range)
- 
+
             #print(len(log_fft_v0_pulse_subtract))
             dm_power[j,trail] = fft_v0_pulse_subtract
             dm_power_log[j,trail]=log_fft_v0_pulse_subtract
 
         if j%10==0:
             print('finished '+str(j+1)+'/ '+str(len(dm_series))+' DM steps')
-        
+
     return delay_freq_range, log_delay_freq_range, dm_power, dm_power_log
 
 
@@ -306,14 +329,14 @@ def fit_log_dm_width(log_delay_freq_range, trials, dm_power_log):
                 pars_init=[np.amax(data),dm_series[np.argmax(data)],0.2,0]
                 popt,pcov = curve_fit(gaus,dm_series,data,
                               p0=pars_init,
-                               bounds=((0, -10, 0, -np.inf), 
+                               bounds=((0, -10, 0, -np.inf),
                                           (np.inf, 10, np.inf, np.inf)))
-    
+
                 fit_width[trail,f] = popt[2]
             except (RuntimeError, ValueError):
                 fit_width[trail,f] = np.nan
-    
-    
+
+
         median_width = np.nanmedian(fit_width[:,f])
 
         if False:
@@ -333,16 +356,16 @@ def fit_log_dm_width(log_delay_freq_range, trials, dm_power_log):
                 pars_init=[np.amax(data),dm_series[np.argmax(data)],median_width,0]
                 popt,pcov = curve_fit(gaus,dm_series,data,
                               p0=pars_init,
-                              bounds=((0, -10, median_width-eps, -np.inf), 
+                              bounds=((0, -10, median_width-eps, -np.inf),
                                       (np.inf, 10, median_width+eps, np.inf)))
-                
+
                 fit_dm[trail,f] = popt[1]
-            
+
                 model = gaus(dm_series, popt[0], popt[1], popt[2], popt[3])
-        
+
             except (RuntimeError, ValueError):
                 fit_dm[trail,f] = np.nan
-        
+
         if False:
             plt.figure(figsize=(8,6))
             plt.title('the delay freq at '+"%.4f"%log_delay_freq_range[f]+' Hz'+'\n'+'mean: '+"%.3f"%np.nanmean(fit_dm[:,f])+', std: '+"%.3f"%np.nanstd(fit_dm[:,f]))
@@ -351,7 +374,7 @@ def fit_log_dm_width(log_delay_freq_range, trials, dm_power_log):
             plt.xlabel('the individual fitting DM')
             plt.ylabel('counts')
             plt.show()
-        
+
     return fit_width, fit_dm
 
 
@@ -361,9 +384,9 @@ def plot_dm_err(fit_dm, log_delay_freq_range):
     m = np.nanmean(fit_dm,axis=0)
     s = np.nanstd(fit_dm,axis=0)
     w = (s**-2)
-    
+
     opt_dm = np.nansum(m*w)/np.nansum(w)
-    opt_dm_err = 1/np.sqrt(np.nansum(w))
+#    opt_dm_err = 1/np.sqrt(np.nansum(w))
 
     if False:
         title = ' The optimized DM: '+"%.4f"%(opt_dm) +\
@@ -397,35 +420,104 @@ def plot_dm_err(fit_dm, log_delay_freq_range):
         plt.show()
         if False:
             plt.savefig(path+str(burst_no)+'_optDM.png', dpi=50, bbox_inches='tight')
-    
-    
-    return opt_dm, opt_dm_err
 
-def main():
+
+    return opt_dm
+
+def intensity_gaus_sim(width, mu, sigma):
+    '''Simulating a Gaussian pulse file'''
+
+    # width: the width of the Gaussian profile
+    # mu: the mean of the adding noise of each channel
+    # sigma: the std of the adding noise of each channel
+
+    nt=624 # number of time bins
+    nf=2048 # number of freq bins
+    t0=0 # the center of the peak in the time-axis
+
+    t = np.linspace(-nt//2, nt//2, nt)
+    g1 = np.exp(-(t-t0)**2 / width**2) #1d gaussian profile
+    g2 = np.tile(g1,(nf,1)) #duplicated the 1d gaussian profile to 2d array
+    noise=np.random.normal(mu, sigma, size=(nf,nt)) # gaussian noise in 2d
+    z = g2+noise # the output is in the shape of (freq, time)
+
+    return z
+
+def single_file(intensity_file, dm_series, trials, rescaled):
 
     '''Performing the DM optimization on the intensity file (in the shape of frequency, time).
        The outputs are the optimized DM value and the uncertainty.  
     '''
 
-    # loading the intensity_file, which is in the shape of (frequency, time) and has been dedispersed to an initial DM. 
-    I=np.load(intensity_file)
-
+    # test1: independent noise with the same mean and std. 
+    if intensity_sim==True:
+        print('using gaus sim')
+        I=intensity_gaus_sim(sim_width, sim_mu, sim_sigma)
+    # test2: using the same intensity file for the bootstrap
+    elif intensity_bootstrap==True:
+        print('testing the bootstrap on a single intensity file')
+        I=np.load(intensity_file)
+        s = np.random.choice(np.arange(nchan), size=nchan)
+        I=I[s,:]
+    # else, the general case
+    else:
+        # loading the intensity_file, which is in the shape of (frequency, time) and has been dedispersed to an initial DM. 
+        I=np.load(intensity_file)
+        
     # convert the intensity into power spectrum with DM steps and N trials of bootstrap
     delay_freq_range, log_delay_freq_range, dm_power, dm_power_log = get_power(I, dm_series, trials)
 
     # getting the fit DM of each freq and each trail with a fixed Gaussian width.
     fit_width, fit_dm = fit_log_dm_width(log_delay_freq_range, trials, dm_power_log)
-    opt_dm, opt_dm_err = plot_dm_err(fit_dm, log_delay_freq_range)
-
-    if True: # see the publication for the rescaling factor of sqrt(5.09)
-        opt_dm_err*=np.sqrt(5.09)
+    opt_dm = plot_dm_err(fit_dm, log_delay_freq_range)
 
     print('The optimized DM: '+str(np.round(opt_dm,4))+' pc/cm**3')
-    print('The optimized DM uncertainty: '+str(np.round(opt_dm_err,4))+' pc/cm**3')
-    
-    return opt_dm, opt_dm_err
+#    print('The optimized DM uncertainty: '+str(np.round(opt_dm_err,4))+' pc/cm**3')
+
+    return I, opt_dm
+
+def process(mpi_elements, intensity_file, dm_series, trials, rescaled):
+
+    I_files, opt_dms = [], []
+    for mpi_element in mpi_elements:
+        I, opt_dm = single_file(intensity_file, dm_series, trials, rescaled)
+        I_files.append(I)
+        opt_dms.append(opt_dm)
+    return I_files, opt_dms
+
+
+def multi_tests(intensity_file, dm_series, trials, rescaled, save_path):
+
+    ''' To test the error distribution, running the algorithm on the same file multiple times.
+    '''
+
+    # the testing times
+    N = 100
+    mpi_elements = np.array_split(np.arange(N), size)
+    mpi_elements = comm.scatter(mpi_elements, root=0)
+
+#    print('rank, mpi_elements',rank,mpi_elements)
+
+    # do calculation in each rank
+    I_files, opt_dms = process(mpi_elements, intensity_file, dm_series, trials, rescaled)
+
+    ''' gather all results to rank 0'''
+    opt_dms = comm.gather(opt_dms,root=0)
+
+    if rank==0:
+        opt_dms = np.concatenate(opt_dms)
+        opt_dm_errs = np.std(opt_dms)
+        print('final DM center: ', opt_dms)
+        print('final DM uncertainty: ', opt_dm_errs)
+
+        # save the result in rank=0
+        np.savez(save_path, opt_dms=opt_dms, opt_dm_errs=opt_dm_errs)
+
+def main():
+
+    multi_tests(intensity_file, dm_series, trials, rescaled, save_path)
+
 
 
 if __name__ == '__main__':
     main()
-
