@@ -30,12 +30,48 @@ The algorithm to optimize dispersion measure (DM) for micro-structures of single
 
 
 ### An example of the usage
-- `python DM_power.py -bw 200 -f0 550 -nchan 2048  -dt 0.00032768 -dm_start -2 -dm_end 2 -dm_steps 51 -trials 1000 -intensity_file 'example.npy'`
+
+#### Generating a simulated Gaussian profile
+- `mpirun -np 100 python DM_power.py -bw 200 -f0 550 -nchan 2048 -dt 0.00032768 -dm_start -2 -dm_end 2 -dm_steps 51 -trials 100 -rescaled False  -intensity_sim True -sim_width 64 -sim_mu 0 -sim_sigma 0.25 -save_path "/scratch/p/pen/hsiuhsil/DM_power/sim_gau_pulses/sim1_individual_test.npz"`
     - We use the data with 2048 frequency channels from 550 to 750 MHz with a timing resolution of 0.00032768 seconds.
     - The range of the optimized DM value, different from the initially dedispersed data, is from -2 to 2 (pc cm<sup>-3</sup>). 
-    - We set 1000 trials for the bootstrap tests.
-    - The `example.npy` is an intensity file, which is dedispersed to an inital DM value and the RFI is removed.
- 
+    - We set 100 trials for the bootstrap tests.
+    - We simulate a Gaussian profile with parameters of width, the average and the variance. 
+    - Finally, save the simulated profile of 100 bootstrapping Gaussian profiles.
+
+#### Measuring the DM and the unvertainty of the simulated files.
+- `mpirun -np 100 python DM_power.py -bw 200 -f0 550 -nchan 2048 -dt 0.00032768 -dm_start -2 -dm_end 2 -dm_steps 51 -trials 100 -rescaled False  -intensity_bootstrap True -intensity_file "/scratch/p/pen/hsiuhsil/DM_power/sim_gau_pulses/sim1_single_profile.npy" -save_path "/scratch/p/pen/hsiuhsil/DM_power/sim_gau_pulses/sim1_bootstrap_test.npz"`
+    - We use the data with 2048 frequency channels from 550 to 750 MHz with a timing resolution of 0.00032768 seconds.
+    - The range of the optimized DM value, different from the initially dedispersed data, is from -2 to 2 (pc cm<sup>-3</sup>). 
+    - We set 100 trials for the bootstrap tests.
+    - `-intensity_bootstrap True` means we are using bootstrap to probe the uncertainty.
+    - `-intensity_file`, the path of the intensity file (note: It should be dedispersed to an initial DM value and the RFI should be masked beforehand)
+    - Finally, save the results in a npz file.
+
+#### Measuring the DM and the uncertainty of a R3 burst.
+- `mpirun -np 100 python DM_power.py -bw 200 -f0 550 -nchan 2048 -dt 0.00032768 -dm_start -2 -dm_end 2 -dm_steps 51 -trials 100 -rescaled False  -intensity_bootstrap True -intensity_file "/scratch/p/pen/hsiuhsil/DM_power/noiseamp_files/burst_11_noiseamp_0.npy" -save_path "/scratch/p/pen/hsiuhsil/DM_power/noiseamp_files/burst_11_noiseamp_0_bootstrap_test.npz"`
+    - We use the data with 2048 frequency channels from 550 to 750 MHz with a timing resolution of 0.00032768 seconds.
+    - The range of the optimized DM value, different from the initially dedispersed data, is from -2 to 2 (pc cm<sup>-3</sup>). 
+    - We set 100 trials for the bootstrap tests.
+    - `-intensity_bootstrap True` means we are using bootstrap to probe the uncertainty.
+    - `-intensity_file`, the path of the intensity file (note: It should be dedispersed to an initial DM value and the RFI should be masked beforehand)
+    - Finally, save the results in a npz file.
+
+#### Measuring the DM and the uncertainty of a PSR B0329+54 pulse
+- `mpirun -np 100 python DM_power.py -bw 200 -f0 550 -nchan 2048 -dt 0.00008192 -dm_start -2 -dm_end 2 -dm_steps 51 -trials 100 -rescaled False  -intensity_bootstrap True -intensity_file "/scratch/p/pen/hsiuhsil/DM_power/noiseamp_files/burst_100_noiseamp_0.npy" -save_path "/scratch/p/pen/hsiuhsil/DM_power/noiseamp_files/burst_100_noiseamp_0_bootstrap_test.npz"`
+    - We use the data with 2048 frequency channels from 550 to 750 MHz with a timing resolution of 0.00008192 seconds.
+    - The range of the optimized DM value, different from the initially dedispersed data, is from -2 to 2 (pc cm<sup>-3</sup>). 
+    - We set 100 trials for the bootstrap tests.
+    - `-intensity_bootstrap True` means we are using bootstrap to probe the uncertainty.
+    - `-intensity_file`, the path of the intensity file (note: It should be dedispersed to an initial DM value and the RFI should be masked beforehand)
+    - Finally, save the results in a npz file.
+
+#### Comparing the result of DM and the uncertainty with [the DM-phase algorithm](https://github.com/danielemichilli/DM_phase)
+- `mpirun -np 100 python  DM_phase_test.py -data_path '/scratch/p/pen/hsiuhsil/DM_power/sim_gau_pulses/sim3_individual_test.npz' -save_path '/scratch/p/pen/hsiuhsil/DM_power/sim_gau_pulses/DM_phase_sim3_individual.npz'`
+- `-data_path` the dedispersed data at an initial DM with RFI masked. 
+- `-save_path` saving the result to a npz file.
+
+
 ## The output of the algorithm
 ### During the analysis
 * The number of DM steps, which the analysis is finished, will be reported.
@@ -46,4 +82,4 @@ The algorithm to optimize dispersion measure (DM) for micro-structures of single
 
 ## Contact information
 * Please report issues [here](https://github.com/hsiuhsil/DM_power/issues).
-* Please feel free to contact Hsiu-Hsien Lin at `hhlin@cita.utoronto.ca` for further discussions.
+* Please feel free to contact Hsiu-Hsien Lin at `hsiuhsil@alumni.cmu.edu` for further discussions.
