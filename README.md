@@ -1,3 +1,4 @@
+![Build from Scratch](https://img.shields.io/badge/Build-From%20Scratch-brightgreen)
 # DM_power
 ## The purpose of this algorithm 
 The algorithm to optimize dispersion measure (DM) for micro-structures of single pulses, such as Fast Radio Bursts (FRBs) or Pulsars, by maximizing the sub-structure in the power spectrum 
@@ -10,6 +11,7 @@ The algorithm to optimize dispersion measure (DM) for micro-structures of single
 
 * A `npy` file with a shape of (frequency, time), and the 0-index row corresponds to the lowest frequency channel.
 * The data should be dedispersed to an initial DM value. The algorithm will determine the optimized DM value by given parameters.
+* The bandpass filter should be applied to each frequency channel (i.e., subtract the mean and divide by the standard deviation of each frequency channel.). 
 * The radio-frequency-interference (RFI) should be removed already.
 * A sufficient duration of the intensity file is required. 
     * The 0-25 and 75-100 % of the duration are for the off-pulse region.
