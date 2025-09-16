@@ -20,7 +20,9 @@ import matplotlib.gridspec as gridspec
 import scipy.fftpack
 from scipy.fftpack import fft, ifft, fftshift
 from scipy.optimize import curve_fit
-from scipy import asarray as ar,exp
+from numpy import exp  # if you need exp separately
+ar = np.asarray       # optional alias
+
 import argparse
 
 parser=argparse.ArgumentParser(description='starting the process')
@@ -228,7 +230,7 @@ def log_rebin1D(z, x, x_bins):
     log_rebinned = np.zeros([x_bins.size], dtype = float)
     n_avg = np.zeros([x_bins.size])
     for i in range(len(z)):
-       current_x =x[i]
+        current_x =x[i]
         # x and y_bin_idx is the index of the bin in 'x' where k belongs.
         x_bin_idx = np.where(abs(current_x-x_bins) == min(abs(current_x-x_bins)))[0][0]
         # at this index, in the rebinned plot, add the Z value.

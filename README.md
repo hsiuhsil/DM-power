@@ -17,6 +17,7 @@ The algorithm to optimize dispersion measure (DM) for micro-structures of single
     * The 0-25 and 75-100 % of the duration are for the off-pulse region.
     * The 25-75 % of the duration is for the on-pulse region.
         * The duration of the on-pulse should cover all of the DM ranges for the optimization.  
+* The input file should be like [Figures C1 and C2 in the paper](https://arxiv.org/pdf/2208.13677.pdf)
 
 ### The required parameters:
 
